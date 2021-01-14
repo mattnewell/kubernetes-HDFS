@@ -32,10 +32,21 @@ data:
     done
     echo $_CLUSTER_ID | grep -q -v null
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "hdfs-k8s.datanode.fullname" .}}
+  labels:
+    app: {{ template "hdfs-k8s.datanode.fullname" .}}
+spec:
+  clusterIP: None
+  selector:
+    app: {{ template "hdfs-k8s.datanode.name" . }}
+---
 # Deleting a daemonset may need some trick. See
 # https://github.com/kubernetes/kubernetes/issues/33245#issuecomment-261250489
-apiVersion: extensions/v1beta1
-kind: DaemonSet
+apiVersion: apps/v1
+kind: StatefulSet
 metadata:
   name: {{ template "hdfs-k8s.datanode.fullname" . }}
   labels:
@@ -43,6 +54,12 @@ metadata:
     chart: {{ template "hdfs-k8s.subchart" . }}
     release: {{ .Release.Name }}
 spec:
+  selector:
+    matchLabels:
+      app: {{ template "hdfs-k8s.datanode.name" . }}
+  serviceName: {{ template "hdfs-k8s.datanode.fullname" . }}
+  # TODO: Parameterize this?
+  replicas: 1
   template:
     metadata:
       labels:
@@ -116,7 +133,7 @@ spec:
               mountPath: /etc/hadoop-custom-conf
               readOnly: true
             {{- range $index, $path := .Values.global.dataNodeHostPath }}
-            - name: hdfs-data-{{ $index }}
+            - name: data
               mountPath: /hadoop/dfs/data/{{ $index }}
             {{- end }}
             {{- if .Values.global.kerberosEnabled }}
@@ -167,11 +184,6 @@ spec:
           configMap:
             name: {{ template "hdfs-k8s.datanode.fullname" . }}-scripts
             defaultMode: 0744
-        {{- range $index, $path := .Values.global.dataNodeHostPath }}
-        - name: hdfs-data-{{ $index }}
-          hostPath:
-            path: {{ $path }}
-        {{- end }}
         - name: hdfs-config
           configMap:
             name: {{ template "hdfs-k8s.config.fullname" . }}
@@ -189,3 +201,13 @@ spec:
           emptyDir: {}
         {{- end }}
         {{- end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      # TODO: Parameterize this?
+      storageClassName: default-storageclass
+      resources:
+        requests:
+          storage: 1Gi
