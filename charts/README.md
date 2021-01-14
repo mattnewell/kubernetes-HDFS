@@ -74,7 +74,7 @@ the main chart using:
 
 ```
   $ helm repo add incubator  \
-      https://kubernetes-charts-incubator.storage.googleapis.com/
+      	https://charts.helm.sh/incubator
   $ helm dependency build charts/hdfs-k8s
 ```
 
